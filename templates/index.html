@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMR Scanner</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;1,300&family=IBM+Plex+Mono:wght@300;400&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1e2310;
+            color: #f0e8cc;
+            font-family: 'Crimson Pro', serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dna-left, .dna-right {
+            position: fixed;
+            top: 0;
+            width: 90px;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .dna-left { left: 0; }
+        .dna-right { right: 0; }
+
+        .page {
+            max-width: 660px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            margin-bottom: 56px;
+            border-bottom: 1px solid #4a5030;
+            padding-bottom: 24px;
+        }
+
+        .org-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 4px;
+            color: #8a9060;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 40px;
+            font-weight: 300;
+            color: #f5ecd0;
+            letter-spacing: 1px;
+        }
+
+        h1 em {
+            font-style: italic;
+            color: #d4a840;
+        }
+
+        .tagline {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #a0a878;
+            font-weight: 300;
+            line-height: 1.7;
+        }
+
+        .section-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: #8a9060;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 180px;
+            background: #161a0c;
+            border: 1px solid #4a5030;
+            border-bottom: 2px solid #4a5030;
+            color: #d4a840;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            padding: 16px;
+            resize: none;
+            outline: none;
+            line-height: 2;
+            letter-spacing: 1px;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus { border-color: #d4a840; }
+        textarea::placeholder { color: #2a3015; }
+
+        .seq-stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 10px;
+            margin-bottom: 24px;
+        }
+
+        .stat {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: #6a7050;
+            letter-spacing: 1px;
+        }
+
+        .stat span { color: #d4a840; }
+
+        .scan-btn {
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 1px solid #d4a840;
+            color: #d4a840;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 5px;
+            cursor: pointer;
+            transition: all 0.25s;
+            text-transform: uppercase;
+        }
+
+        .scan-btn:hover {
+            background: #d4a840;
+            color: #1e2310;
+        }
+
+        .scanning-state {
+            display: none;
+            text-align: center;
+            padding: 48px 0;
+        }
+
+        .scanning-state.active { display: block; }
+
+        .molecule {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
+            animation: spinMolecule 1.5s linear infinite;
+        }
+
+        @keyframes spinMolecule {
+            to { transform: rotate(360deg); }
+        }
+
+        .scanning-text {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: #6a7050;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .result {
+            display: none;
+            margin-top: 48px;
+            border-top: 1px solid #4a5030;
+            padding-top: 32px;
+            animation: fadeUp 0.4s ease;
+        }
+
+        .result.active { display: block; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-verdict {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .result-verdict.resistant { color: #d46040; }
+        .result-verdict.sensitive { color: #70b880; }
+
+        .result-meta {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: #6a7050;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .confidence-track {
+            height: 3px;
+            background: #2a3015;
+            margin-bottom: 32px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            transition: width 1.2s ease;
+        }
+
+        .confidence-fill.resistant { background: #d46040; }
+        .confidence-fill.sensitive { background: #70b880; }
+
+        .genes-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: #6a7050;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+        }
+
+        .gene-entry {
+            padding: 16px 0;
+            border-bottom: 1px solid #2a3015;
+        }
+
+        .gene-entry:last-child { border-bottom: none; }
+
+        .gene-name {
+            font-size: 18px;
+            color: #f0e8cc;
+            font-weight: 400;
+            margin-bottom: 4px;
+        }
+
+        .gene-info {
+            font-size: 14px;
+            color: #8a9060;
+            line-height: 1.8;
+            font-weight: 300;
+        }
+
+        .gene-info strong {
+            color: #d4a840;
+            font-weight: 400;
+        }
+
+        .error-state {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: #d46040;
+            padding: 16px 0;
+            letter-spacing: 1px;
+        }
+
+        footer {
+            margin-top: 80px;
+            padding-top: 24px;
+            border-top: 1px solid #2a3015;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: #4a5030;
+            letter-spacing: 2px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Static DNA Left -->
+    <div class="dna-left">
+        <svg width="90" height="100%" viewBox="0 0 90 960" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <path d="M20,0 C60,40 60,80 20,120 C-20,160 -20,200 20,240 C60,280 60,320 20,360 C-20,400 -20,440 20,480 C60,520 60,560 20,600 C-20,640 -20,680 20,720 C60,760 60,800 20,840 C-20,880 -20,920 20,960" 
+                  stroke="#d4a840" stroke-width="2.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+            <path d="M70,0 C30,40 30,80 70,120 C110,160 110,200 70,240 C30,280 30,320 70,360 C110,400 110,440 70,480 C30,520 30,560 70,600 C110,640 110,680 70,720 C30,760 30,800 70,840 C110,880 110,920 70,960" 
+                  stroke="#8a9060" stroke-width="2.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+            <line x1="20" y1="30" x2="70" y2="30" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="90" x2="70" y2="90" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="150" x2="70" y2="150" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="210" x2="70" y2="210" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="270" x2="70" y2="270" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="330" x2="70" y2="330" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="390" x2="70" y2="390" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="450" x2="70" y2="450" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="510" x2="70" y2="510" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="570" x2="70" y2="570" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="630" x2="70" y2="630" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="690" x2="70" y2="690" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="750" x2="70" y2="750" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="810" x2="70" y2="810" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="870" x2="70" y2="870" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="930" x2="70" y2="930" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="20" cy="30" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="30" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="90" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="90" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="150" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="150" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="210" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="210" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="270" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="270" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="330" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="330" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="390" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="390" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="450" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="450" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="510" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="510" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="570" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="570" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="630" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="630" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="690" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="690" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="750" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="750" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="810" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="810" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="20" cy="870" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="70" cy="870" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="20" cy="930" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="70" cy="930" r="4" fill="#d46040" opacity="0.8"/>
+        </svg>
+    </div>
+
+    <!-- Static DNA Right -->
+    <div class="dna-right">
+        <svg width="90" height="100%" viewBox="0 0 90 960" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <path d="M70,0 C30,40 30,80 70,120 C110,160 110,200 70,240 C30,280 30,320 70,360 C110,400 110,440 70,480 C30,520 30,560 70,600 C110,640 110,680 70,720 C30,760 30,800 70,840 C110,880 110,920 70,960" 
+                  stroke="#d4a840" stroke-width="2.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+            <path d="M20,0 C60,40 60,80 20,120 C-20,160 -20,200 20,240 C60,280 60,320 20,360 C-20,400 -20,440 20,480 C60,520 60,560 20,600 C-20,640 -20,680 20,720 C60,760 60,800 20,840 C-20,880 -20,920 20,960" 
+                  stroke="#8a9060" stroke-width="2.5" fill="none" opacity="0.5" stroke-linecap="round"/>
+            <line x1="20" y1="30" x2="70" y2="30" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="90" x2="70" y2="90" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="150" x2="70" y2="150" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="210" x2="70" y2="210" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="270" x2="70" y2="270" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="330" x2="70" y2="330" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="390" x2="70" y2="390" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="450" x2="70" y2="450" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="510" x2="70" y2="510" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="570" x2="70" y2="570" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="630" x2="70" y2="630" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="690" x2="70" y2="690" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="750" x2="70" y2="750" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="810" x2="70" y2="810" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="870" x2="70" y2="870" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="20" y1="930" x2="70" y2="930" stroke="#4a5030" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="70" cy="30" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="30" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="90" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="90" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="150" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="150" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="210" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="210" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="270" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="270" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="330" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="330" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="390" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="390" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="450" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="450" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="510" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="510" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="570" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="570" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="630" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="630" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="690" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="690" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="750" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="750" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="810" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="810" r="4" fill="#d46040" opacity="0.8"/>
+            <circle cx="70" cy="870" r="4" fill="#d4a840" opacity="0.8"/>
+            <circle cx="20" cy="870" r="4" fill="#8a9060" opacity="0.8"/>
+            <circle cx="70" cy="930" r="4" fill="#70b880" opacity="0.8"/>
+            <circle cx="20" cy="930" r="4" fill="#d46040" opacity="0.8"/>
+        </svg>
+    </div>
+
+    <div class="page">
+        <header>
+            <div class="org-tag">Antimicrobial Resistance Detection System</div>
+            <h1>AMR <em>Scanner</em></h1>
+            <p class="tagline">Identifies antibiotic resistance genes in bacterial DNA sequences using the CARD database — 6,445 known resistance determinants.</p>
+        </header>
+
+        <div class="section-label">Bacterial DNA Sequence</div>
+        <textarea id="seq-input"
+            placeholder="Paste sequence here... minimum 100 bases."
+            oninput="updateStats()"></textarea>
+
+        <div class="seq-stats">
+            <div class="stat">Length <span id="seq-len">0</span> bp</div>
+            <div class="stat">GC <span id="gc-val">0.00</span>%</div>
+            <div class="stat">Status <span id="seq-status">—</span></div>
+        </div>
+
+        <button class="scan-btn" onclick="runScan()">Initiate Resistance Scan</button>
+
+        <div class="scanning-state" id="scanning">
+            <svg class="molecule" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="30" cy="30" r="6" fill="#d4a840"/>
+                <circle cx="30" cy="10" r="5" fill="#70b880"/>
+                <circle cx="48" cy="20" r="5" fill="#d46040"/>
+                <circle cx="48" cy="40" r="5" fill="#8a9060"/>
+                <circle cx="30" cy="50" r="5" fill="#d4a840"/>
+                <circle cx="12" cy="40" r="5" fill="#70b880"/>
+                <circle cx="12" cy="20" r="5" fill="#d46040"/>
+                <line x1="30" y1="30" x2="30" y2="10" stroke="#4a5030" stroke-width="1.5"/>
+                <line x1="30" y1="30" x2="48" y2="20" stroke="#4a5030" stroke-width="1.5"/>
+                <line x1="30" y1="30" x2="48" y2="40" stroke="#4a5030" stroke-width="1.5"/>
+                <line x1="30" y1="30" x2="30" y2="50" stroke="#4a5030" stroke-width="1.5"/>
+                <line x1="30" y1="30" x2="12" y2="40" stroke="#4a5030" stroke-width="1.5"/>
+                <line x1="30" y1="30" x2="12" y2="20" stroke="#4a5030" stroke-width="1.5"/>
+            </svg>
+            <div class="scanning-text">Scanning against CARD database</div>
+        </div>
+
+        <div class="result" id="result"></div>
+
+        <footer>
+            <span>CARD v4.0.1 // 6,445 resistance genes</span>
+            <span>Random Forest // 99% accuracy</span>
+        </footer>
+    </div>
+
+    <script>
+        function updateStats() {
+            const seq = document.getElementById('seq-input').value.replace(/\s/g, '').toUpperCase();
+            const len = seq.length;
+            const gc = len > 0 ? ((seq.split('').filter(b => b==='G'||b==='C').length/len)*100).toFixed(2) : '0.00';
+            document.getElementById('seq-len').textContent = len;
+            document.getElementById('gc-val').textContent = gc;
+            document.getElementById('seq-status').textContent = len >= 100 ? 'Ready' : len > 0 ? 'Too short' : '—';
+        }
+
+        async function runScan() {
+            const sequence = document.getElementById('seq-input').value.replace(/\s/g,'').toUpperCase();
+            if (sequence.length < 100) {
+                document.getElementById('result').className = 'result active';
+                document.getElementById('result').innerHTML = '<div class="error-state">Sequence must be at least 100 bases.</div>';
+                return;
+            }
+            document.getElementById('scanning').className = 'scanning-state active';
+            document.getElementById('result').className = 'result';
+
+            try {
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({sequence})
+                });
+                const data = await res.json();
+                document.getElementById('scanning').className = 'scanning-state';
+
+                if (data.error) {
+                    document.getElementById('result').className = 'result active';
+                    document.getElementById('result').innerHTML = `<div class="error-state">${data.error}</div>`;
+                    return;
+                }
+
+                const resistant = data.result === 'resistant';
+                const cls = resistant ? 'resistant' : 'sensitive';
+                const verdict = resistant ? 'Resistance Detected' : 'No Resistance Detected';
+                const meta = resistant ?
+                    `Antibiotic resistance genes identified — ${data.confidence}% confidence` :
+                    `Sequence does not match known resistance patterns — ${data.confidence}% confidence`;
+
+                let genesHTML = '';
+                if (resistant && data.resistance_info.length > 0) {
+                    genesHTML = `<div class="genes-label" style="margin-top:32px">Similar genes in CARD database</div>`;
+                    data.resistance_info.forEach(g => {
+                        genesHTML += `
+                        <div class="gene-entry">
+                            <div class="gene-name">${g.gene}</div>
+                            <div class="gene-info">
+                                <strong>Drug class</strong> ${g.drug_class}<br>
+                                <strong>Mechanism</strong> ${g.mechanism}
+                            </div>
+                        </div>`;
+                    });
+                }
+
+                document.getElementById('result').className = 'result active';
+                document.getElementById('result').innerHTML = `
+                    <div class="result-verdict ${cls}">${verdict}</div>
+                    <div class="result-meta">${meta}</div>
+                    <div class="confidence-track">
+                        <div class="confidence-fill ${cls}" style="width:0%" id="conf-bar"></div>
+                    </div>
+                    ${genesHTML}
+                `;
+                setTimeout(() => {
+                    document.getElementById('conf-bar').style.width = data.confidence + '%';
+                }, 100);
+
+            } catch(e) {
+                document.getElementById('scanning').className = 'scanning-state';
+                document.getElementById('result').className = 'result active';
+                document.getElementById('result').innerHTML = '<div class="error-state">Connection error.</div>';
+            }
+        }
+    </script>
+</body>
+</html>
